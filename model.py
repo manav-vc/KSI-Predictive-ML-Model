@@ -41,29 +41,23 @@ print(KSI_dataset.shape)  # Display the shape of the dataset
 
 print(KSI_dataset.columns)  # Display the column names
 
-print(KSI_dataset.isnull().sum())  # Check for null column names
-
 
 # Display the first few rows of the dataset
-def display_data(df):
-    print("First 5 rows of the dataset:")
-    print(df.head())
-    print("\nData types and descriptions:")
-    print(df.info())
-    print("\nStatistical summary:")
-    print(df.describe())
+def display_column_details(df):
+    for col in df.columns:
+        print(f"\nColumn: {col}")
+        print("Data type:", df[col].dtype)
+        print("First 5 values:\n", df[col].head())
+        print("Missing values:", df[col].isnull().sum())
+        if pd.api.types.is_numeric_dtype(df[col]):
+            print("Statistical summary:\n", df[col].describe())
+            print("\n\n\n")
+        else:
+            print("Value counts:\n", df[col].value_counts().head())
+            print("\n\n\n")
 
-display_data(df=KSI_dataset)
+display_column_details(KSI_dataset)
 
-# Historical data visualization for every column in the dataset
 
-import matplotlib.pyplot as plt
-
-def plot_historical_data(df):
-    df.hist(bins=50, figsize=(20, 15))
-    plt.show()
-    plt.savefig(r'Graphs\ksi-histogram.png')  # Save the histogram plot as an image file
-
-plot_historical_data(df=KSI_dataset)
 
 
