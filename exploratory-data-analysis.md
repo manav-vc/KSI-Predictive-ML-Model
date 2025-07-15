@@ -395,7 +395,12 @@ _(Add any other columns you have, especially if you created new features during 
 | `FATAL_NO` | Removed | This feature was identified as a sequential, auto-incrementing number assigned to _fatalities_, rather than a descriptive attribute of the collision or involved parties. |
 | `ObjectID`| Removed| Removed as unique identifiers with no predictive value. |
 | `Index` | Removed | Removed as unique identifiers with no predictive value. |
-
+| `PEDTYPE`    | Removed  | Contains 15,728 missing values; applies only to pedestrian-involved cases.|
+| `PEDACT`     | Removed  | Contains 15,730 missing values; applies only to pedestrian-involved cases.|
+| `PEDCOND`    | Removed  | Contains 15,711 missing values; applies only to pedestrian-involved cases.|
+| `CYCLISTYPE` | Removed  | Contains 18,152 missing values; applies only to cyclist-involved cases.   |
+| `CYCACT`     | Removed  | Contains 18,155 missing values; applies only to cyclist-involved cases.   |
+| `CYCCOND`    | Removed  | Contains 18,157 missing values; applies only to cyclist-involved cases.   |
 
     
 ### Addressing Data Granularity (if you aggregate to `ACCNUM` level)
