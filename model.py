@@ -245,9 +245,10 @@ def clean_data(df):
         return series.mode()[0] if not series.mode().empty else np.nan
 
     def get_all_unique(series):
-        return list(series.unique())
+        return list(series.dropna().unique())
 
     aggregation_dict = {
+        "accident_number": "first",
         # Unique accident identifiers
         "date": "first",
         "time": "first",
@@ -579,4 +580,3 @@ if __name__ == "__main__":
 
         # 4. Perform data quality check
         # perform_data_quality_check(cleaned_df)
-
