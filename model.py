@@ -304,14 +304,12 @@ def clean_data(df):
         "division": "first",
         "injury": lambda x: "Fatal" in x.astype(str).values,
         # numerical averages
-        "involvement_age": "mean",
+        "involvement_age": get_all_unique,
         "injury_severity_score": "max",
     }
-    aggregated_df = (
-        df_cleaned.groupby("accident_number").agg(aggregation_dict).reset_index()
-    )
+    aggregated_df = df_cleaned.groupby("accident_number").agg(aggregation_dict)
 
-    return df_cleaned
+    return aggregated_df.reset_index(drop=True)
 
 
 def perform_data_quality_check(df_cleaned):
@@ -572,7 +570,7 @@ if __name__ == "__main__":
 
     if ksi_df is not None:
         # 2. Initial data investigation
-        initial_data_investigation(ksi_df)
+        # initial_data_investigation(ksi_df)
 
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
@@ -580,5 +578,4 @@ if __name__ == "__main__":
         # initial_data_investigation(cleaned_df)
 
         # 4. Perform data quality check
-        perform_data_quality_check(cleaned_df)
-
+        # perform_data_quality_check(cleaned_df)
