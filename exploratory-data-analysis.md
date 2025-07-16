@@ -78,8 +78,6 @@ _(Add any other columns you have, especially if you created new features during 
 
 | Feature Name | Count   | Mean      | Std Dev  | Min Value | 25th Percentile | 50th Percentile (Median) | 75th Percentile | Max Value | Notes                                                                                   |
 | ------------ | ------- | --------- | -------- | --------- | --------------- | ------------------------ | --------------- | --------- | --------------------------------------------------------------------------------------- |
-| `OBJECTID`   | 18957.0 | 9479.0    | 5472.56  | 1.0       | 4740.0          | 9479.0                   | 14218.0         | 18957.0   | Unique identifier; evenly distributed.                                                  |
-| `INDEX_`     | 18957.0 | 3.99e+07  | 3.75e+07 | 3.36e+06  | 5.41e+06        | 7.82e+06                 | 8.09e+07        | 8.18e+07  | Another unique identifier; wide range.                                                  |
 | `ACCNUM`     | 14027.0 | 5.58e+08  | 1.18e+09 | 2.53e+04  | 1.03e+06        | 1.22e+06                 | 1.39e+06        | 4.01e+09  | Accident number; significant missing values (4930).                                     |
 | `TIME`       | 18957.0 | 1364.96   | 631.31   | 0.0       | 924.0           | 1450.0                   | 1852.0          | 2359.0    | Represents time in HHMM format. Distribution suggests peaks around midday/afternoon.    |
 | `LATITUDE`   | 18957.0 | 43.71     | 0.056    | 43.59     | 43.66           | 43.70                    | 43.76           | 43.86     | Geographic coordinate within Toronto.                                                   |
@@ -396,20 +394,52 @@ _(Add any other columns you have, especially if you created new features during 
 - **`ALCOHOL`**: Yes: 808
 - **`DISABILITY`**: Yes: 493
 
-## 4. Data Preprocessing and Feature Engineering
+### 4. Data Preprocessing and Feature Engineering
 
-### Handling Missing Values
+The primary goal was to convert person-level data into an accident-level, while engineering features from existing information.
 
-### Data Type Conversions
+#### Handling Missing Values
 
-### Feature Creation (e.g., `DAY_OF_WEEK`, `HOUR_OF_DAY`, aggregated `INJURY` features)
+- **Imputing Missing Accident Numbers (`ACCNUM`)**:
 
-### Feature Selection and Removal
+  - The `ACCNUM` (renamed to `accident_number`) column initially had missing values, and multiple rows could pertain to the same accident.
+  - A function `handle_missing_accident_numbers` was developed to identify unique accidents using a composite key (`date`, `time`, `street1`, `latitude`, `longitude`, `light`, `accident_class`). This allowed the team to salvage over 4,900 orphan samples and generate over 1,900 valid collisions.
 
-| Name       | Action  | Reasoning                                                                                                                                                                 |
-| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FATAL_NO` | Removed | This feature was identified as a sequential, auto-incrementing number assigned to _fatalities_, rather than a descriptive attribute of the collision or involved parties. |
-| `ObjectID` | Removed | Removed as unique identifiers with no predictive value.                                                                                                                   |
-| `Index`    | Removed | Removed as unique identifiers with no predictive value.                                                                                                                   |
+- **Standardizing Boolean Columns**:
 
-### Addressing Data Granularity (if you aggregate to `ACCNUM` level)
+  - Columns like `pedestrian`, `cyclist`, `automobile`, `speeding`, `alcohol`, `aggressive_driving`, `redlight`, and `disability` contained 'Yes', 'No', or `NaN` values.
+  - These were transformed into a numerical format: 'Yes' values were mapped to `1`, and all other values (including 'No' and `NaN`) were mapped to `0`. This treats the absence of a 'Yes' indicator as `0`.
+
+#### Data Type Conversions
+
+- **Date Conversion**:
+
+  - The `DATE` column, initially an object type, was converted into a standardized datetime format (`pd.to_datetime`). This conversion is essential for accurate temporal analysis and feature derivation.
+
+#### Feature Creation
+
+New features were engineered to provide more insightful information from the existing data, and existing features were transformed to be more suitable for analysis at the accident level.
+
+- **Year Extraction**:
+
+  - From the converted `date` column, a new `year` feature was extracted, enabling analysis of accident trends over different years.
+
+- **Injury Severity Scoring**:
+
+  - The `INJURY` column, describing injury severity ('Fatal', 'Major', 'Minor', 'Minimal', 'None'), was mapped to a new numerical feature, `injury_severity_score`. A numerical mapping was applied: 'Fatal' = 4, 'Major' = 3, 'Minor' = 2, 'Minimal' = 1, and 'None' = 0. This ordinal encoding provides a quantitative measure of accident severity.
+
+- **Aggregation and Feature Consolidation (Accident-Level Features)**:
+
+  - The team transformed the dataset from an individual-level records to a single record per unique `accident_number` through a `groupby().agg()` operation. This provided an accident focused view with features:
+
+    - **`first` aggregation**: For accident specific attributes (e.g., `date`, `time`, `street1`, coordinates, `road_class`, `district`, traffic control, `visibility`, light conditions, road surface conditions, neighborhood information, `accident_class`, and transformed boolean involvement flags like `pedestrian`, `cyclist`, `automobile`, `speeding`, `alcohol`), the first observed value for that `accident_number` was taken.
+    - **`get_most_frequent` aggregation**: For features like `impact_type` and `initial_direction`, the most frequently occurring value within each accident group was used.
+    - **`get_all_unique` aggregation**: For descriptive features that vary among individuals within an accident (e.g., `involvement_type`, `vehicle_type`, `manoeuver`, `driver_action`, `driver_condition`, and all pedestrian/cyclist-related action/condition columns, `involvement_age`), all unique non-null values were collected into lists. This allows the team to select the most optimal encoding strategy as the next feature engineering step.
+    - **Fatal Injury Flag**: The `injury` column was transformed into a boolean (`True`/`False`) indicating whether _any_ fatal injury occurred within that specific accident.
+    - **Maximum Injury Severity Score**: For the `injury_severity_score`, the maximum score among all individuals in an accident was taken, representing the most severe outcome for that accident.
+
+#### Feature Selection and Removal
+
+- **Implicit Feature Selection via Aggregation**: By grouping data by `accident_number` and applying specific aggregation functions, the process effectively selected and transformed features from individual-level detail to accident-level summaries. For instance, instead of multiple rows for `involvement_type`, a single row now contains a list of all unique involvement types for that accident.
+- The `OBJECTID` column from the original dataset was implicitly dropped during the aggregation process, as it was not included in the `aggregation_dict`.
+- The `INDEX` columns from the original dataset was also implicitly dropped during aggregation.

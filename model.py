@@ -571,12 +571,12 @@ if __name__ == "__main__":
 
     if ksi_df is not None:
         # 2. Initial data investigation
-        # initial_data_investigation(ksi_df)
+        initial_data_investigation(ksi_df)
 
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
         cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
-        # initial_data_investigation(cleaned_df)
+        initial_data_investigation(cleaned_df)
 
         # 4. Perform data quality check
-        # perform_data_quality_check(cleaned_df)
+        perform_data_quality_check(cleaned_df)
