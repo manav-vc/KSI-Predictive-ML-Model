@@ -1,13 +1,7 @@
-"""
-Toronto KSI Collisions Analysis and Modelling
+"""Group project"""
+import seaborn as sns
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
-
-Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
-Date: 2023-10-31
-"""
-
-"""
+'''
 1. Data exploration: a complete review and analysis of the dataset including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
@@ -23,562 +17,182 @@ Feature selection – use pandas and sci-kit learn. (The group needs to justify 
 Train, Test data splitting – use numpy, sci-kit learn.
 Managing imbalanced classes if needed. Check here for info: https://elitedatascience.com/imbalanced-classes
 Use pipelines class to streamline all the pre-processing transformations.
-"""
+'''
+
+
+# 1. Data exploration
 
 import os
-import tarfile
 import urllib.request
-
-import matplotlib.pyplot as plt
+import tarfile
 import pandas as pd
-import seaborn as sns
-from pandas.core.base import np
 
-DATA_FILE = "ksi.csv"
-PLOTS_DIR = "plots"
-DATASET_DIR = "datasets"
+# creating dataframe from the csv file
+def load_data():
+    filename = r"ksi-dataset.csv"
 
+    if  os.path.exists(filename):
+        df = pd.read_csv(filename)
+        return df
 
-def load_data(file_path: str):
-    """Loads the dataset from the specified file path."""
-    if not os.path.exists(file_path):
-        print(f"Error: Dataset not found at {file_path}")
-        return None
-    df = pd.read_csv(file_path)
-    return df
+KSI_dataset = load_data()
 
 
-dataset = load_data(os.path.join(DATASET_DIR, DATA_FILE))
+print(KSI_dataset.shape)  # Display the shape of the dataset
 
-
-def initial_data_investigation(df):
-    """
-    Performs an initial investigation of the dataset.
-
-    Args:
-        df (pd.DataFrame): The dataset to investigate.
-    """
-    print("\nDataset Info:")
-    df.info()
-
-    print("\nDataset Description:")
-    print(df.describe())
-
-    print("\nDataset Shape:")
-    print(df.shape)
-
-    print("\nDataset Data Types:")
-    print(df.dtypes)
-
-    print("\nDataset Head:")
-    print(df.head(3))
-
-
-# --- Data Cleaning and Preprocessing ---
-
-
-def handle_missing_accident_numbers(df):
-    """
-    Handles missing 'accident_number' values using a loop-based approach
-    by grouping records based on a composite key.
-
-    Args:
-        df (pd.DataFrame): The DataFrame with 'accident_number' and other relevant columns.
-
-    Returns:
-        pd.DataFrame: The DataFrame with 'accident_number' column imputed.
-    """
-    df_processed = df.copy()
-
-    # Ensure 'accident_number' can hold string values for new IDs
-    # and properly treat existing NaNs.
-    df_processed["accident_number"] = df_processed["accident_number"].astype(str)
-    df_processed["accident_number"] = df_processed["accident_number"].replace(
-        "nan", np.nan
-    )
-
-    # Define the columns that form the composite key
-    composite_key_cols = [
-        "date",
-        "time",
-        "street1",
-        "latitude",
-        "longitude",
-        "light",
-        "accident_class",
-    ]
-
-    # --- Pre-processing for the loop ---
-    # Convert composite key columns to string for consistent hashing/comparison in a loop
-    # and fill NaNs with a unique string placeholder.
-    # This prevents NaN values from breaking comparisons.
-    temp_df = df_processed[composite_key_cols].astype(str).fillna("__MISSING__")
-
-    # Store unique composite keys and their assigned accident numbers
-    # Key: Tuple of composite column values (e.g., (date_val, time_val, ...))
-    # Value: The assigned accident_number for that composite key
-    composite_key_to_accnum = {}
-
-    # A counter for generating new unique accident numbers
-    new_acc_id_counter = 0
-
-    for index, row in df_processed.iterrows():
-        current_acc_num = row["accident_number"]
-
-        if pd.notna(current_acc_num):
-            # Also, ensure this existing accident number is mapped to its composite key
-            # for later use if other rows without accnum share this key
-            current_composite_key_values = tuple(temp_df.loc[index, composite_key_cols])
-            if current_composite_key_values not in composite_key_to_accnum:
-                composite_key_to_accnum[current_composite_key_values] = current_acc_num
-            continue  # Move to the next row
-
-        # If accident_number is NaN, we need to determine its value
-        current_composite_key_values = tuple(temp_df.loc[index, composite_key_cols])
-
-        # Check if this composite key has already been seen and assigned an accident_number
-        if current_composite_key_values in composite_key_to_accnum:
-            # If yes, assign the existing accident_number to the current row
-            df_processed.loc[index, "accident_number"] = composite_key_to_accnum[
-                current_composite_key_values
-            ]
-        else:
-            # If no, this is a new unique composite key (a new accident)
-            # Assign a new unique accident number and store it
-            new_id = new_acc_id_counter + 1
-            df_processed.loc[index, "accident_number"] = new_id
-            composite_key_to_accnum[current_composite_key_values] = new_id
-            new_acc_id_counter += 1
-
-    return df_processed
-
-
-def clean_data(df):
-    """
-    Performs data cleaning and preprocessing steps.
-
-    Args:
-        df (pd.DataFrame): Raw dataset.
-
-    Returns:
-        pd.DataFrame: The preprocessed dataset.
-    """
-    df_cleaned = df.copy()
-
-    # Column renames mapping
-    column_renames = {
-        "ACCNUM": "accident_number",
-        "ACCLOC": "accident_location",
-        "ACCLASS": "accident_class",
-        "RDSFCOND": "road_surface_condition",
-        "IMPACTYPE": "impact_type",
-        "INVTYPE": "involvement_type",
-        "INVAGE": "involvement_age",
-        "VEHTYPE": "vehicle_type",
-        "DRIVACT": "driver_action",
-        "DRIVCOND": "driver_condition",
-        "PEDTYPE": "pedestrian_type",
-        "PEDACT": "pedestrian_action",
-        "PEDCOND": "pedestrian_condition",
-        "CYCLISTYPE": "cyclist_type",
-        "CYCACT": "cyclist_action",
-        "CYCCOND": "cyclist_condition",
-        "AG_DRIV": "aggressive_driving",
-        "INITDIR": "initial_direction",
-        "NEIGHBOURHOOD_158": "neighbourhood_new",
-        "NEIGHBOURHOOD_140": "neighbourhood_old",
-    }
-
-    # Apply renames
-    df_cleaned.rename(columns=column_renames, inplace=True)
-    # Lowercase all column names
-    df_cleaned.columns = [col.lower() for col in df_cleaned.columns]
-
-    # --- pre-aggregation ---
-
-    # Convert 'DATE' to datetime
-    df_cleaned["date"] = pd.to_datetime(df_cleaned["date"], errors="coerce")
-    df_cleaned["year"] = df_cleaned["date"].dt.year
-
-    # Create temp accident numbers for null samples
-    # nan_accident_numbers = df_cleaned["accident_number"].isnull()
-    # df_cleaned.loc[nan_accident_numbers, "accident_number"] = np.arange(
-    #     1, nan_accident_numbers.sum() + 1
-    # )  # Start numbering from 1 since existing numbers are very large
-    df_cleaned = handle_missing_accident_numbers(df_cleaned)
-
-    # Convert boolean columns to 1/0. Assume NaN are 0.
-    boolean_columns = [
-        "pedestrian",
-        "cyclist",
-        "automobile",
-        "motorcycle",
-        "truck",
-        "trsn_city_veh",
-        "emerg_veh",
-        "passenger",
-        "speeding",
-        "aggressive_driving",
-        "redlight",
-        "alcohol",
-        "disability",
-    ]
-    for col in boolean_columns:
-        if col in df_cleaned.columns:
-            # df_cleaned.replace({col: {"Yes": 1, "No": 0}}, inplace=True)
-            # .apply is better because it takes 'null' into consideration
-            df_cleaned[col] = df_cleaned[col].apply(lambda x: 1 if x == "Yes" else 0)
-
-    injury_mapping = {
-        "Fatal": 4,
-        "Major": 3,
-        "Minor": 2,
-        "Minimal": 1,
-        "None": 0,
-    }
-    # Apply mapping
-    df_cleaned["injury_severity_score"] = df_cleaned["injury"].map(injury_mapping)
-
-    # --- aggregation ---
-
-    def get_most_frequent(series):
-        return series.mode()[0] if not series.mode().empty else np.nan
-
-    def get_all_unique(series):
-        return list(series.unique())
-
-    aggregation_dict = {
-        # Unique accident identifiers
-        "date": "first",
-        "time": "first",
-        "year": "first",
-        "street1": "first",
-        "street2": "first",
-        "offset": "first",
-        "road_class": "first",
-        "district": "first",
-        "latitude": "first",
-        "longitude": "first",
-        "x": "first",
-        "y": "first",
-        "accident_location": "first",
-        "traffctl": "first",
-        "visibility": "first",
-        "light": "first",
-        "road_surface_condition": "first",
-        "hood_158": "first",
-        "neighbourhood_new": "first",
-        "hood_140": "first",
-        "neighbourhood_old": "first",
-        "accident_class": "first",
-        # Person-level counts/booleans
-        # booleans don't get toggled by person. If an accident involved a pedestrian,
-        # all samples are marked as "yes".
-        "pedestrian": "first",
-        "cyclist": "first",
-        "automobile": "first",
-        "motorcycle": "first",
-        "truck": "first",
-        "trsn_city_veh": "first",
-        "emerg_veh": "first",
-        "passenger": "first",
-        "speeding": "first",
-        "aggressive_driving": "first",
-        "redlight": "first",
-        "alcohol": "first",
-        "disability": "first",
-        # Person Characteristic
-        "impact_type": get_most_frequent,
-        "involvement_type": get_all_unique,
-        "initial_direction": get_most_frequent,
-        "vehicle_type": get_all_unique,
-        "manoeuver": get_all_unique,
-        "driver_action": get_all_unique,
-        "driver_condition": get_all_unique,
-        "pedestrian_type": get_all_unique,
-        "pedestrian_action": get_all_unique,
-        "pedestrian_condition": get_all_unique,
-        "cyclist_type": get_all_unique,
-        "cyclist_action": get_all_unique,
-        "cyclist_condition": get_all_unique,
-        "division": "first",
-        "injury": lambda x: "Fatal" in x.astype(str).values,
-        # numerical averages
-        "involvement_age": "mean",
-        "injury_severity_score": "max",
-    }
-    aggregated_df = (
-        df_cleaned.groupby("accident_number").agg(aggregation_dict).reset_index()
-    )
-
-    return df_cleaned
-
-
-def perform_data_quality_check(df_cleaned):
-    """
-    Performs a detailed investigation of the dataset after cleaning.
-    Check for data consistency, redundancy, missing values, and relationships
-    between features.
-
-    Args:
-        df_cleaned (pd.DataFrame): The cleaned dataset.
-    """
-
-    # accident_number as string
-    df_cleaned["accident_number"] = df_cleaned["accident_number"].astype("str")
-
-    accnum_missing_count = df_cleaned["accident_number"].isnull().sum()
-    print(f"Accident Number Missing Count: {accnum_missing_count}\n")
-
-    # Group by accident number
-    accident_counts = df_cleaned.groupby("accident_number").size()
-    print(f"{accident_counts}\n")
-    print(f"Number of unique non-null accidents: {accident_counts.shape[0]}\n")
-    print(f"Max individuals in an accident: {accident_counts.max()}\n")
-    print(f"Min individuals in an accident: {accident_counts.min()}\n")
-
-    # Check for inconsistent accident_class values
-    acclass_consistency = df_cleaned.groupby("accident_number")[
-        "accident_class"
-    ].nunique()
-    # inconsistent_accidents: accidents with more than one unique accident_class (e.g., Fatal, Non-Fatal)
-    inconsistent_accidents = acclass_consistency[acclass_consistency > 1]
-    print(
-        f"Number of accidents with inconsistent accident_class values: {inconsistent_accidents.shape[0]}"
-    )
-
-    # Check redundancy between (x,y) and (latitude, longitude)
-    corr_x_long = df_cleaned["x"].corr(df_cleaned["longitude"])
-    corr_y_lat = df_cleaned["y"].corr(df_cleaned["latitude"])
-    print(f"Correlation between x and Longitude: {corr_x_long}")
-    print(f"Correlation between y and Latitude: {corr_y_lat}")
-
-    # Identify features with high missing values and low utility
-    missing_percentages = df_cleaned.isnull().sum() / len(df_cleaned) * 100
-    highly_missing_features = missing_percentages[missing_percentages > 50].sort_values(
-        ascending=False
-    )
-    print("\nFeatures with more than 50% missing values:")
-    print(highly_missing_features)
-
-    # Check relationship between 'accident_class' and 'injury' for 'Fatal' cases
-    fatal_acclass_df = df_cleaned[df_cleaned["accident_class"] == "Fatal"]
-    print(
-        "\nFatal accident class count:",
-        fatal_acclass_df["accident_number"].value_counts(),
-    )
-    fatal_injury_per_fatal_acclass = fatal_acclass_df.groupby("accident_number")[
-        "injury"
-    ].apply(lambda x: "Fatal" in x.values)
-    print("\nfatal_injury_per_fatal_acclass:\n", fatal_injury_per_fatal_acclass)
-    print(
-        f"\nNumber of 'Fatal' accident_numbers where at least one injury is 'Fatal': {fatal_injury_per_fatal_acclass.sum()}"
-    )
-
-    # Check if all Fatal accident_numbers have at least one 'Fatal' injury
-    all_fatal_acclass_have_fatal_injury = fatal_injury_per_fatal_acclass.all()
-    print(
-        f"Do all 'Fatal' accident_numbers have at least one 'Fatal' INJURY? {all_fatal_acclass_have_fatal_injury}"
-    )
+print(KSI_dataset.columns)  # Display the column names
 
 
 # Display the first few rows of the dataset
-# def display_column_details(dataset):
-#     for col in dataset.columns:
-#         print(f"\nColumn: {col}")
-#         print("Data type:", dataset[col].dtype)
-#         print("First 5 values:\n", dataset[col].head())
-#         print("Missing values:", dataset[col].isnull().sum())
-#         if pd.api.types.is_numeric_dtype(dataset[col]):
-#             print("Statistical summary:\n", dataset[col].describe())
-#             print("\n\n\n")
-#         else:
-#             print("Value counts:\n", dataset[col].value_counts().head())
-#             print("\n\n\n")
-#
-#
-# display_column_details(dataset)
-#
-#
-# print(dataset.isnull().sum())  # Check for missing values in each column
-#
-#
-# # Data visualization
-# import matplotlib.pyplot as plt
-# import pandas as pd
-# import seaborn as sns
-#
-# # --- Data Preparation for Temporal Plots ---
-# # Convert 'DATE' to datetime objects
-# dataset["DATE"] = pd.to_datetime(dataset["DATE"])
-#
-# # Extract Year, Month, Day of Week, and Hour for easier plotting
-# dataset["YEAR"] = dataset["DATE"].dt.year
-# dataset["MONTH"] = dataset["DATE"].dt.month_name()
-# dataset["DAY_OF_WEEK"] = dataset["DATE"].dt.day_name()
-# # Convert integer time (e.g., 1450) to just the hour (e.g., 14)
-# dataset["HOUR"] = dataset["TIME"] // 100
-#
-#
-# # --- Graph 1: Accident Severity Breakdown ---
-# plt.figure(figsize=(8, 6))
-# sns.countplot(data=dataset, x="ACCLASS", palette="viridis")
-# plt.title("Distribution of Accident Severity")
-# plt.xlabel("Accident Class")
-# plt.ylabel("Number of Persons Involved")
-# plt.savefig(r"graphs/1_countplot_acclass.png")
-# plt.close()
-#
-# # --- Graph 2: Collisions by Light Condition ---
-# plt.figure(figsize=(10, 6))
-# sns.countplot(
-#     data=dataset,
-#     y="LIGHT",
-#     order=dataset["LIGHT"].value_counts().index,
-#     palette="magma",
-# )
-# plt.title("Number of Collisions by Light Condition")
-# plt.xlabel("Number of Persons Involved")
-# plt.ylabel("Light Condition")
-# plt.tight_layout()
-# plt.savefig(r"graphs/2_countplot_light.png")
-# plt.close()
-#
-# # --- Graph 3: Collisions by Impact Type ---
-# plt.figure(figsize=(12, 8))
-# sns.countplot(
-#     data=dataset,
-#     y="IMPACTYPE",
-#     order=dataset["IMPACTYPE"].value_counts().index,
-#     palette="plasma",
-# )
-# plt.title("Number of Collisions by Impact Type")
-# plt.xlabel("Number of Persons Involved")
-# plt.ylabel("Impact Type")
-# plt.tight_layout()
-# plt.savefig(r"graphs/3_countplot_impactype.png")
-# plt.close()
-#
-# # --- Graph 4: Severity by Road Class (Percentage) ---
-# crosstab_roadclass = (
-#     pd.crosstab(dataset["ROAD_CLASS"], dataset["ACCLASS"], normalize="index") * 100
-# )
-# crosstab_roadclass.plot(kind="bar", stacked=True, figsize=(12, 8), colormap="coolwarm")
-# plt.title("Proportion of Accident Severity by Road Class")
-# plt.xlabel("Road Class")
-# plt.ylabel("Percentage (%)")
-# plt.xticks(rotation=45)
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/4_stacked_severity_by_roadclass.png")
-# plt.close()
-#
-# # --- Graph 5: Severity by Contributing Factors (Alcohol) ---
-# plt.figure(figsize=(10, 7))
-# sns.countplot(
-#     data=dataset[dataset["ALCOHOL"] == "Yes"],
-#     x="ALCOHOL",
-#     hue="ACCLASS",
-#     palette="Reds_r",
-# )
-# plt.title("Accident Severity in Alcohol-Related Collisions")
-# plt.xlabel("Alcohol Involved")
-# plt.ylabel("Number of Persons Involved")
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/5_grouped_severity_alcohol.png")
-# plt.close()
-#
-# # --- Graph 6: Severity vs. Aggressive/Distracted Driving ---
-# plt.figure(figsize=(10, 7))
-# sns.countplot(
-#     data=dataset[dataset["AG_DRIV"] == "Yes"],
-#     x="AG_DRIV",
-#     hue="ACCLASS",
-#     palette="Oranges_r",
-# )
-# plt.title("Accident Severity in Aggressive/Distracted Driving Collisions")
-# plt.xlabel("Aggressive/Distracted Driving Involved")
-# plt.ylabel("Number of Persons Involved")
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/6_grouped_severity_ag_driv.png")
-# plt.close()
-#
-#
-# # --- Graph 7: Collisions Over the Years ---
-# plt.figure(figsize=(14, 7))
-# sns.countplot(data=dataset, x="YEAR", hue="ACCLASS", palette="viridis")
-# plt.title("KSI Collisions by Year")
-# plt.xlabel("Year")
-# plt.ylabel("Number of Persons Involved")
-# plt.xticks(rotation=45)
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/7_line_collisions_by_year.png")
-# plt.close()
-#
-# # --- Graph 8: Collisions by Hour of Day ---
-# plt.figure(figsize=(14, 7))
-# sns.countplot(data=dataset, x="HOUR", palette="twilight_shifted")
-# plt.title("Number of Collisions by Hour of Day")
-# plt.xlabel("Hour of Day (24-hour format)")
-# plt.ylabel("Number of Persons Involved")
-# plt.tight_layout()
-# plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
-# plt.close()
-#
-# # --- Graph 9: Collisions by Day of Week ---
-# days_order = [
-#     "Monday",
-#     "Tuesday",
-#     "Wednesday",
-#     "Thursday",
-#     "Friday",
-#     "Saturday",
-#     "Sunday",
-# ]
-# plt.figure(figsize=(12, 6))
-# sns.countplot(data=dataset, x="DAY_OF_WEEK", order=days_order, palette="cubehelix")
-# plt.title("Number of Collisions by Day of Week")
-# plt.xlabel("Day of Week")
-# plt.ylabel("Number of Persons Involved")
-# plt.tight_layout()
-# plt.savefig(r"graphs/9_bar_collisions_by_day.png")
-# plt.close()
-#
-# # --- Graph 10: Collision Hotspot Map ---
-# plt.figure(figsize=(10, 10))
-# sns.kdeplot(
-#     data=dataset,
-#     x="LONGITUDE",
-#     y="LATITUDE",
-#     fill=True,
-#     cmap="Reds",
-#     alpha=0.6,
-#     levels=20,  # Increase levels for more detail
-# )
-# plt.title("Collision Hotspot Density in Toronto")
-# plt.xlabel("Longitude")
-# plt.ylabel("Latitude")
-# plt.tight_layout()
-# plt.savefig(r"graphs/10_kdeplot_hotspots.png")
-# plt.close()
-#
+def display_column_details(df):
+    for col in df.columns:
+        print(f"\nColumn: {col}")
+        print("Data type:", df[col].dtype)
+        print("First 5 values:\n", df[col].head())
+        print("Missing values:", df[col].isnull().sum())
+        if pd.api.types.is_numeric_dtype(df[col]):
+            print("Statistical summary:\n", df[col].describe())
+            print("\n\n\n")
+        else:
+            print("Value counts:\n", df[col].value_counts().head())
+            print("\n\n\n")
 
-if __name__ == "__main__":
-    # 1. Load data
-    ksi_df = load_data(os.path.join(DATASET_DIR, DATA_FILE))
+display_column_details(KSI_dataset)
 
-    if ksi_df is not None:
-        # 2. Initial data investigation
-        initial_data_investigation(ksi_df)
 
-        # 3. Clean data
-        cleaned_df = clean_data(ksi_df)
-        cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
-        # initial_data_investigation(cleaned_df)
+print(KSI_dataset.isnull().sum())  # Check for missing values in each column
 
-        # 4. Perform data quality check
-        perform_data_quality_check(cleaned_df)
 
+
+#Data visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+
+# --- Data Preparation for Temporal Plots ---
+# Convert 'DATE' to datetime objects
+KSI_dataset['DATE'] = pd.to_datetime(KSI_dataset['DATE'])
+
+# Extract Year, Month, Day of Week, and Hour for easier plotting
+KSI_dataset['YEAR'] = KSI_dataset['DATE'].dt.year
+KSI_dataset['MONTH'] = KSI_dataset['DATE'].dt.month_name()
+KSI_dataset['DAY_OF_WEEK'] = KSI_dataset['DATE'].dt.day_name()
+# Convert integer time (e.g., 1450) to just the hour (e.g., 14)
+KSI_dataset['HOUR'] = KSI_dataset['TIME'] // 100
+
+
+# --- Graph 1: Accident Severity Breakdown ---
+plt.figure(figsize=(8, 6))
+sns.countplot(data=KSI_dataset, x='ACCLASS', palette='viridis')
+plt.title('Distribution of Accident Severity')
+plt.xlabel('Accident Class')
+plt.ylabel('Number of Persons Involved')
+plt.savefig(r'graphs/1_countplot_acclass.png')
+plt.close()
+
+# --- Graph 2: Collisions by Light Condition ---
+plt.figure(figsize=(10, 6))
+sns.countplot(data=KSI_dataset, y='LIGHT', order=KSI_dataset['LIGHT'].value_counts().index, palette='magma')
+plt.title('Number of Collisions by Light Condition')
+plt.xlabel('Number of Persons Involved')
+plt.ylabel('Light Condition')
+plt.tight_layout()
+plt.savefig(r'graphs/2_countplot_light.png')
+plt.close()
+
+# --- Graph 3: Collisions by Impact Type ---
+plt.figure(figsize=(12, 8))
+sns.countplot(data=KSI_dataset, y='IMPACTYPE', order=KSI_dataset['IMPACTYPE'].value_counts().index, palette='plasma')
+plt.title('Number of Collisions by Impact Type')
+plt.xlabel('Number of Persons Involved')
+plt.ylabel('Impact Type')
+plt.tight_layout()
+plt.savefig(r'graphs/3_countplot_impactype.png')
+plt.close()
+
+# --- Graph 4: Severity by Road Class (Percentage) ---
+crosstab_roadclass = pd.crosstab(KSI_dataset['ROAD_CLASS'], KSI_dataset['ACCLASS'], normalize='index') * 100
+crosstab_roadclass.plot(kind='bar', stacked=True, figsize=(12, 8), colormap='coolwarm')
+plt.title('Proportion of Accident Severity by Road Class')
+plt.xlabel('Road Class')
+plt.ylabel('Percentage (%)')
+plt.xticks(rotation=45)
+plt.legend(title='Accident Class')
+plt.tight_layout()
+plt.savefig(r'graphs/4_stacked_severity_by_roadclass.png')
+plt.close()
+
+# --- Graph 5: Severity by Contributing Factors (Alcohol) ---
+plt.figure(figsize=(10, 7))
+sns.countplot(data=KSI_dataset[KSI_dataset['ALCOHOL'] == 'Yes'], x='ALCOHOL', hue='ACCLASS', palette='Reds_r')
+plt.title('Accident Severity in Alcohol-Related Collisions')
+plt.xlabel('Alcohol Involved')
+plt.ylabel('Number of Persons Involved')
+plt.legend(title='Accident Class')
+plt.tight_layout()
+plt.savefig(r'graphs/5_grouped_severity_alcohol.png')
+plt.close()
+
+# --- Graph 6: Severity vs. Aggressive/Distracted Driving ---
+plt.figure(figsize=(10, 7))
+sns.countplot(data=KSI_dataset[KSI_dataset['AG_DRIV'] == 'Yes'], x='AG_DRIV', hue='ACCLASS', palette='Oranges_r')
+plt.title('Accident Severity in Aggressive/Distracted Driving Collisions')
+plt.xlabel('Aggressive/Distracted Driving Involved')
+plt.ylabel('Number of Persons Involved')
+plt.legend(title='Accident Class')
+plt.tight_layout()
+plt.savefig(r'graphs/6_grouped_severity_ag_driv.png')
+plt.close()
+
+
+# --- Graph 7: Collisions Over the Years ---
+plt.figure(figsize=(14, 7))
+sns.countplot(data=KSI_dataset, x='YEAR', hue='ACCLASS', palette='viridis')
+plt.title('KSI Collisions by Year')
+plt.xlabel('Year')
+plt.ylabel('Number of Persons Involved')
+plt.xticks(rotation=45)
+plt.legend(title='Accident Class')
+plt.tight_layout()
+plt.savefig(r'graphs/7_line_collisions_by_year.png')
+plt.close()
+
+# --- Graph 8: Collisions by Hour of Day ---
+plt.figure(figsize=(14, 7))
+sns.countplot(data=KSI_dataset, x='HOUR', palette='twilight_shifted')
+plt.title('Number of Collisions by Hour of Day')
+plt.xlabel('Hour of Day (24-hour format)')
+plt.ylabel('Number of Persons Involved')
+plt.tight_layout()
+plt.savefig(r'graphs/8_bar_collisions_by_hour.png')
+plt.close()
+
+# --- Graph 9: Collisions by Day of Week ---
+days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+plt.figure(figsize=(12, 6))
+sns.countplot(data=KSI_dataset, x='DAY_OF_WEEK', order=days_order, palette='cubehelix')
+plt.title('Number of Collisions by Day of Week')
+plt.xlabel('Day of Week')
+plt.ylabel('Number of Persons Involved')
+plt.tight_layout()
+plt.savefig(r'graphs/9_bar_collisions_by_day.png')
+plt.close()
+
+# --- Graph 10: Collision Hotspot Map ---
+plt.figure(figsize=(10, 10))
+sns.kdeplot(
+    data=KSI_dataset,
+    x='LONGITUDE',
+    y='LATITUDE',
+    fill=True,
+    cmap='Reds',
+    alpha=0.6,
+    levels=20 # Increase levels for more detail
+)
+plt.title('Collision Hotspot Density in Toronto')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.tight_layout()
+plt.savefig(r'graphs/10_kdeplot_hotspots.png')
+plt.close()
