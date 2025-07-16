@@ -443,3 +443,11 @@ New features were engineered to provide more insightful information from the exi
 - **Implicit Feature Selection via Aggregation**: By grouping data by `accident_number` and applying specific aggregation functions, the process effectively selected and transformed features from individual-level detail to accident-level summaries. For instance, instead of multiple rows for `involvement_type`, a single row now contains a list of all unique involvement types for that accident.
 - The `OBJECTID` column from the original dataset was implicitly dropped during the aggregation process, as it was not included in the `aggregation_dict`.
 - The `INDEX` columns from the original dataset was also implicitly dropped during aggregation.
+
+
+#### Future Data Preprocessing and Feature Engineering Considerations
+- The team has identified several areas for refinement in data preprocessing and feature engineering to enhance the dataset.
+
+- Addressing Redundancy in Involvement Features:
+  - Observation: A redundancy exists between the involvement_type column (which captures all unique involvement types as a list for each accident, e.g., ['Driver', 'Pedestrian']) and the individual boolean flags (e.g., pedestrian, automobile, motorcycle, etc.). These boolean flags act as a form of one-hot encoding for specific involvement categories at the accident level.
+  - **Proposed Action**: To improve feature efficiency, the team is considering dropping the existing individual binary features (such as `pedestrian`, `cyclist`, `automobile`, `motorcycle`, `truck`, `trsn_city_veh`, `emerg_veh`, `passenger`, `speeding`, `aggressive_driving`, `redlight`, `alcohol`, and `disability`). Instead, we will do a one-hot encoding approach to the `involvement_type` and `vehicle_type` lists. This would generate new, explicit one-hot encoded features like `involvement_type_pedestrian` or `vehicle_type_truck`.
