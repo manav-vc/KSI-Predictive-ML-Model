@@ -48,9 +48,6 @@ def load_data(file_path: str):
     return df
 
 
-dataset = load_data(os.path.join(DATASET_DIR, DATA_FILE))
-
-
 def initial_data_investigation(df):
     """
     Performs an initial investigation of the dataset.
@@ -247,6 +244,8 @@ def clean_data(df):
     def get_all_unique(series):
         return list(series.dropna().unique())
 
+    #  TODO: Aggregation strategies
+    # - Group involvement ages into different bins. Maybe we just use the actually involved? like the drivers?
     aggregation_dict = {
         "accident_number": "first",
         # Unique accident identifiers
@@ -571,12 +570,16 @@ if __name__ == "__main__":
 
     if ksi_df is not None:
         # 2. Initial data investigation
-        initial_data_investigation(ksi_df)
+        # initial_data_investigation(ksi_df)
 
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
         cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
-        initial_data_investigation(cleaned_df)
+        # initial_data_investigation(cleaned_df)
 
         # 4. Perform data quality check
         perform_data_quality_check(cleaned_df)
+
+        # 5. Feature engineering (or perform encoding, imputing, drop features)
+        #  TODO: https://scikit-learn.org/stable/modules/feature_selection.html#tree-based-feature-selection
+        # Use feature importances (of the selected classifier) for feature selection.
