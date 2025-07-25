@@ -1,14 +1,14 @@
 """
 Toronto KSI Collisions Analysis and Modelling
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions df.
+This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
 
 Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
 Date: 2023-10-31
 """
 
 """
-1. Data exploration: a complete review and analysis of the df including:
+1. Data exploration: a complete review and analysis of the dataset including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
 Statistical assessments including means, averages, correlations
