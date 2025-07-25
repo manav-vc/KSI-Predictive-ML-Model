@@ -326,6 +326,10 @@ def clean_data(df):
 
     # --- missing values handling ---
 
+    #  TODO: driver_action and driver_condition have a lot of missin values, in the shape of empty lists
+    # sometimes a cyclist crashes into a parked car, so we can assume that the driver was not involved.
+    # investigate further
+
     #  INFO: Impute multilabel features with 'Not Applicable' if the list is empty.
     for multi_label_feature in [
         "pedestrian_action",
