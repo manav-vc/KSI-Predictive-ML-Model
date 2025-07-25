@@ -1,14 +1,14 @@
 """
 Toronto KSI Collisions Analysis and Modelling
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
+This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions df.
 
 Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
 Date: 2023-10-31
 """
 
 """
-1. Data exploration: a complete review and analysis of the dataset including:
+1. Data exploration: a complete review and analysis of the df including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
 Statistical assessments including means, averages, correlations
@@ -36,13 +36,13 @@ from pandas.core.base import np
 
 DATA_FILE = "ksi.csv"
 PLOTS_DIR = "plots"
-DATASET_DIR = "datasets"
+df_DIR = "datasets"
 
 
 def load_data(file_path: str):
-    """Loads the dataset from the specified file path."""
+    """Loads the df from the specified file path."""
     if not os.path.exists(file_path):
-        print(f"Error: Dataset not found at {file_path}")
+        print(f"Error: df not found at {file_path}")
         return None
     df = pd.read_csv(file_path)
     return df
@@ -50,24 +50,24 @@ def load_data(file_path: str):
 
 def investigate_dataset(df):
     """
-    Performs an initial investigation of the dataset.
+    Performs an initial investigation of the df.
 
     Args:
-        df (pd.DataFrame): The dataset to investigate.
+        df (pd.DataFrame): The df to investigate.
     """
-    print("\nDataset Info:")
+    print("\ndf Info:")
     df.info()
 
-    print("\nDataset Description:")
+    print("\ndf Description:")
     print(df.describe())
 
-    print("\nDataset Shape:")
+    print("\ndf Shape:")
     print(df.shape)
 
-    print("\nDataset Data Types:")
+    print("\ndf Data Types:")
     print(df.dtypes)
 
-    print("\nDataset Head:")
+    print("\ndf Head:")
     print(df.head(3))
 
 
@@ -155,10 +155,10 @@ def clean_data(df):
     Performs data cleaning and preprocessing steps.
 
     Args:
-        df (pd.DataFrame): Raw dataset.
+        df (pd.DataFrame): Raw df.
 
     Returns:
-        pd.DataFrame: The preprocessed dataset.
+        pd.DataFrame: The preprocessed df.
     """
     df_cleaned = df.copy()
 
@@ -497,7 +497,7 @@ def perform_data_quality_check(df_cleaned):
     between features.
 
     Args:
-        df_cleaned (pd.DataFrame): The cleaned dataset.
+        df_cleaned (pd.DataFrame): The cleaned df.
     """
 
     # accident_number as string
@@ -684,6 +684,28 @@ def data_visualisation(df):
     plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
     plt.close()
 
+    # --- Graph 7: Collisions Over the Years ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="YEAR", hue="ACCLASS", palette="viridis")
+    plt.title("KSI Collisions by Year")
+    plt.xlabel("Year")
+    plt.ylabel("Number of Persons Involved")
+    plt.xticks(rotation=45)
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/7_line_collisions_by_year.png")
+    plt.close()
+
+    # --- Graph 8: Collisions by Hour of Day ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="HOUR", palette="twilight_shifted")
+    plt.title("Number of Collisions by Hour of Day")
+    plt.xlabel("Hour of Day (24-hour format)")
+    plt.ylabel("Number of Persons Involved")
+    plt.tight_layout()
+    plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
+    plt.close()
+
     # --- Graph 9: Collisions by Day of Week ---
     days_order = [
         "Monday",
@@ -724,7 +746,13 @@ def data_visualisation(df):
 
 if __name__ == "__main__":
     # 1. Load data
-    ksi_df = load_data(os.path.join(DATASET_DIR, DATA_FILE))
+    ksi_df = load_data(os.path.join(df_DIR, DATA_FILE))
+    display_column_details(ksi_df)
+
+    print(ksi_df.isnull().sum())
+
+    # commented out for now
+    # data_visualisation(ksi_df)
 
     if ksi_df is not None:
         # 2. Initial data investigation
