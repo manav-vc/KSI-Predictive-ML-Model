@@ -1,14 +1,14 @@
 """
 Toronto KSI Collisions Analysis and Modelling
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
+This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions df.
 
 Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
 Date: 2023-10-31
 """
 
 """
-1. Data exploration: a complete review and analysis of the dataset including:
+1. Data exploration: a complete review and analysis of the df including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
 Statistical assessments including means, averages, correlations
@@ -48,7 +48,7 @@ def load_data(file_path: str):
     return df
 
 
-def initial_data_investigation(df):
+def investigate_dataset(df):
     """
     Performs an initial investigation of the dataset.
 
@@ -56,10 +56,7 @@ def initial_data_investigation(df):
         df (pd.DataFrame): The dataset to investigate.
     """
     print("\nDataset Info:")
-    # df.info()
-    # print missing values
-    missing_values = df.isnull().sum()
-    print(missing_values)
+    df.info()
 
     print("\nDataset Description:")
     print(df.describe())
@@ -67,8 +64,8 @@ def initial_data_investigation(df):
     print("\nDataset Shape:")
     print(df.shape)
 
-    # print("\nDataset Data Types:")
-    # print(df.dtypes)
+    print("\nDataset Data Types:")
+    print(df.dtypes)
 
     print("\nDataset Head:")
     print(df.head(3))
@@ -316,7 +313,35 @@ def clean_data(df):
         .reset_index(drop=True)
     )
 
+    # --- post-aggregation ---
+    #  INFO: Investigation
+    # Get accidents where pedestrian_action has multiple values
+    # accident_number = 886 has ['Crossing, no Traffic Control', 'Crossing without right of way']
+    # so this is a multi-label feature.
+    # multi_label_pedestrian_actions = aggregated_df[
+    #     aggregated_df["pedestrian_action"].apply(lambda x: len(x) > 1)
+    # ]
+    # print(df_cleaned["pedestrian_type"].unique())
+
     # --- missing values handling ---
+
+    #  INFO: Impute multilabel features with 'Not Applicable' if the list is empty.
+    for multi_label_feature in [
+        "pedestrian_action",
+        "pedestrian_condition",
+        "pedestrian_type",
+        "cyclist_action",
+        "cyclist_condition",
+        "cyclist_type",
+    ]:
+        if multi_label_feature in aggregated_df.columns:
+            aggregated_df[multi_label_feature] = aggregated_df[
+                multi_label_feature
+            ].apply(
+                lambda x: (
+                    ["Not Applicable"] if isinstance(x, list) and len(x) == 0 else x
+                )
+            )
 
     # Impute accident_location with 'Unknown'
     aggregated_df.fillna({"accident_location": "Unknown"}, inplace=True)
@@ -407,26 +432,54 @@ def clean_data(df):
         "Fatal"
     )
 
-    # feature engineering
+    # --- Drop features ---
+
+    # Drop offset because it is not useful for analysis and it's missing 79% of the time.
+    aggregated_df.drop(columns=["offset"], inplace=True)
+
+    # Drop pedestrian_type because it's a detail of how the pedestrian was involved (we cannot use a sentence.
+    # aggregated_df.drop(columns=["pedestrian_type"], inplace=True)
+
+    # drop division because it means the toronto police division, which is not useful for analysis.
+    aggregated_df.drop(columns=["division"], inplace=True)
+
+    return aggregated_df
+
+
+def feature_engineering(df):
+
+    #  INFO: feature engineering decision
+    # "strategy": "single_label" means that the feature has one label per sample
+    # "strategy": "multi_label" means that the feature can have multiple labels per sample
     feature_engineering_decisions = {
-        # feature to drop
-        "offset": "drop",
-        # feature to keep as is
-        "accident_number": "keep",
-        "date": "keep",
-        "time": "keep",
-        "year": "keep",
-        "latitude": "keep",
-        "longitude": "keep",
-        "x": "keep",
-        "y": "keep",
-        #  TODO: should we keep or drop these?
-        "street1": "keep",
-        "street2": "keep",
-        # INFO: 5031 non-null, 1,841 missing values
-        # Needs imputation
-        "accident_location": "keep",
-        # to feature engineer
+        "accident_location": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "traffctl": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "visibility": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        #  TODO: light can have "dark, artificial". do we wanna remove that?
+        "light": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "road_surface_condition": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        #  TODO: injury is true/false if the accident was fatal. But isn't this the same as accident_class?
+        "injury": {
+            "action": "binarizer",
+        },
+        "pedestrian_actionl": {
+            "action": "multi_label_binarizer",
+        },
         "involvement_type": "",
         "involvement_age": "binning",  # TODO: binning
         "road_class": "one-hot-encode",
@@ -434,12 +487,12 @@ def clean_data(df):
         "district": "",
     }
 
-    return aggregated_df
+    return df
 
 
 def perform_data_quality_check(df_cleaned):
     """
-    Performs a detailed investigation of the dataset after cleaning.
+    Performs a detailed investigation of the df after cleaning.
     Check for data consistency, redundancy, missing values, and relationships
     between features.
 
@@ -505,188 +558,168 @@ def perform_data_quality_check(df_cleaned):
     )
 
 
-# Display the first few rows of the dataset
-def display_column_details(dataset):
-    for col in dataset.columns:
-        print(f"\nColumn: {col}")
-        print("Data type:", dataset[col].dtype)
-        print("First 5 values:\n", dataset[col].head())
-        print("Missing values:", dataset[col].isnull().sum())
-        if pd.api.types.is_numeric_dtype(dataset[col]):
-            print("Statistical summary:\n", dataset[col].describe())
-            print("\n\n\n")
-        else:
-            print("Value counts:\n", dataset[col].value_counts().head())
-            print("\n\n\n")
+# Data visualization
+def data_visualisation(df):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import seaborn as sns
 
+    # --- Data Preparation for Temporal Plots ---
+    # Convert 'DATE' to datetime objects
+    df["DATE"] = pd.to_datetime(df["DATE"])
 
-# display_column_details(dataset)
-#
-#
-# print(dataset.isnull().sum())  # Check for missing values in each column
-#
-#
-# # Data visualization
-# import matplotlib.pyplot as plt
-# import pandas as pd
-# import seaborn as sns
-#
-# # --- Data Preparation for Temporal Plots ---
-# # Convert 'DATE' to datetime objects
-# dataset["DATE"] = pd.to_datetime(dataset["DATE"])
-#
-# # Extract Year, Month, Day of Week, and Hour for easier plotting
-# dataset["YEAR"] = dataset["DATE"].dt.year
-# dataset["MONTH"] = dataset["DATE"].dt.month_name()
-# dataset["DAY_OF_WEEK"] = dataset["DATE"].dt.day_name()
-# # Convert integer time (e.g., 1450) to just the hour (e.g., 14)
-# dataset["HOUR"] = dataset["TIME"] // 100
-#
-#
-# # --- Graph 1: Accident Severity Breakdown ---
-# plt.figure(figsize=(8, 6))
-# sns.countplot(data=dataset, x="ACCLASS", palette="viridis")
-# plt.title("Distribution of Accident Severity")
-# plt.xlabel("Accident Class")
-# plt.ylabel("Number of Persons Involved")
-# plt.savefig(r"graphs/1_countplot_acclass.png")
-# plt.close()
-#
-# # --- Graph 2: Collisions by Light Condition ---
-# plt.figure(figsize=(10, 6))
-# sns.countplot(
-#     data=dataset,
-#     y="LIGHT",
-#     order=dataset["LIGHT"].value_counts().index,
-#     palette="magma",
-# )
-# plt.title("Number of Collisions by Light Condition")
-# plt.xlabel("Number of Persons Involved")
-# plt.ylabel("Light Condition")
-# plt.tight_layout()
-# plt.savefig(r"graphs/2_countplot_light.png")
-# plt.close()
-#
-# # --- Graph 3: Collisions by Impact Type ---
-# plt.figure(figsize=(12, 8))
-# sns.countplot(
-#     data=dataset,
-#     y="IMPACTYPE",
-#     order=dataset["IMPACTYPE"].value_counts().index,
-#     palette="plasma",
-# )
-# plt.title("Number of Collisions by Impact Type")
-# plt.xlabel("Number of Persons Involved")
-# plt.ylabel("Impact Type")
-# plt.tight_layout()
-# plt.savefig(r"graphs/3_countplot_impactype.png")
-# plt.close()
-#
-# # --- Graph 4: Severity by Road Class (Percentage) ---
-# crosstab_roadclass = (
-#     pd.crosstab(dataset["ROAD_CLASS"], dataset["ACCLASS"], normalize="index") * 100
-# )
-# crosstab_roadclass.plot(kind="bar", stacked=True, figsize=(12, 8), colormap="coolwarm")
-# plt.title("Proportion of Accident Severity by Road Class")
-# plt.xlabel("Road Class")
-# plt.ylabel("Percentage (%)")
-# plt.xticks(rotation=45)
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/4_stacked_severity_by_roadclass.png")
-# plt.close()
-#
-# # --- Graph 5: Severity by Contributing Factors (Alcohol) ---
-# plt.figure(figsize=(10, 7))
-# sns.countplot(
-#     data=dataset[dataset["ALCOHOL"] == "Yes"],
-#     x="ALCOHOL",
-#     hue="ACCLASS",
-#     palette="Reds_r",
-# )
-# plt.title("Accident Severity in Alcohol-Related Collisions")
-# plt.xlabel("Alcohol Involved")
-# plt.ylabel("Number of Persons Involved")
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/5_grouped_severity_alcohol.png")
-# plt.close()
-#
-# # --- Graph 6: Severity vs. Aggressive/Distracted Driving ---
-# plt.figure(figsize=(10, 7))
-# sns.countplot(
-#     data=dataset[dataset["AG_DRIV"] == "Yes"],
-#     x="AG_DRIV",
-#     hue="ACCLASS",
-#     palette="Oranges_r",
-# )
-# plt.title("Accident Severity in Aggressive/Distracted Driving Collisions")
-# plt.xlabel("Aggressive/Distracted Driving Involved")
-# plt.ylabel("Number of Persons Involved")
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/6_grouped_severity_ag_driv.png")
-# plt.close()
-#
-#
-# # --- Graph 7: Collisions Over the Years ---
-# plt.figure(figsize=(14, 7))
-# sns.countplot(data=dataset, x="YEAR", hue="ACCLASS", palette="viridis")
-# plt.title("KSI Collisions by Year")
-# plt.xlabel("Year")
-# plt.ylabel("Number of Persons Involved")
-# plt.xticks(rotation=45)
-# plt.legend(title="Accident Class")
-# plt.tight_layout()
-# plt.savefig(r"graphs/7_line_collisions_by_year.png")
-# plt.close()
-#
-# # --- Graph 8: Collisions by Hour of Day ---
-# plt.figure(figsize=(14, 7))
-# sns.countplot(data=dataset, x="HOUR", palette="twilight_shifted")
-# plt.title("Number of Collisions by Hour of Day")
-# plt.xlabel("Hour of Day (24-hour format)")
-# plt.ylabel("Number of Persons Involved")
-# plt.tight_layout()
-# plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
-# plt.close()
-#
-# # --- Graph 9: Collisions by Day of Week ---
-# days_order = [
-#     "Monday",
-#     "Tuesday",
-#     "Wednesday",
-#     "Thursday",
-#     "Friday",
-#     "Saturday",
-#     "Sunday",
-# ]
-# plt.figure(figsize=(12, 6))
-# sns.countplot(data=dataset, x="DAY_OF_WEEK", order=days_order, palette="cubehelix")
-# plt.title("Number of Collisions by Day of Week")
-# plt.xlabel("Day of Week")
-# plt.ylabel("Number of Persons Involved")
-# plt.tight_layout()
-# plt.savefig(r"graphs/9_bar_collisions_by_day.png")
-# plt.close()
-#
-# # --- Graph 10: Collision Hotspot Map ---
-# plt.figure(figsize=(10, 10))
-# sns.kdeplot(
-#     data=dataset,
-#     x="LONGITUDE",
-#     y="LATITUDE",
-#     fill=True,
-#     cmap="Reds",
-#     alpha=0.6,
-#     levels=20,  # Increase levels for more detail
-# )
-# plt.title("Collision Hotspot Density in Toronto")
-# plt.xlabel("Longitude")
-# plt.ylabel("Latitude")
-# plt.tight_layout()
-# plt.savefig(r"graphs/10_kdeplot_hotspots.png")
-# plt.close()
+    # Extract Year, Month, Day of Week, and Hour for easier plotting
+    df["YEAR"] = df["DATE"].dt.year
+    df["MONTH"] = df["DATE"].dt.month_name()
+    df["DAY_OF_WEEK"] = df["DATE"].dt.day_name()
+    # Convert integer time (e.g., 1450) to just the hour (e.g., 14)
+    df["HOUR"] = df["TIME"] // 100
+
+    # --- Graph 1: Accident Severity Breakdown ---
+    plt.figure(figsize=(8, 6))
+    sns.countplot(data=df, x="ACCLASS", palette="viridis")
+    plt.title("Distribution of Accident Severity")
+    plt.xlabel("Accident Class")
+    plt.ylabel("Number of Persons Involved")
+    plt.savefig(r"graphs/1_countplot_acclass.png")
+    plt.close()
+
+    # --- Graph 2: Collisions by Light Condition ---
+    plt.figure(figsize=(10, 6))
+    sns.countplot(
+        data=df,
+        y="LIGHT",
+        order=df["LIGHT"].value_counts().index,
+        palette="magma",
+    )
+    plt.title("Number of Collisions by Light Condition")
+    plt.xlabel("Number of Persons Involved")
+    plt.ylabel("Light Condition")
+    plt.tight_layout()
+    plt.savefig(r"graphs/2_countplot_light.png")
+    plt.close()
+
+    # --- Graph 3: Collisions by Impact Type ---
+    plt.figure(figsize=(12, 8))
+    sns.countplot(
+        data=df,
+        y="IMPACTYPE",
+        order=df["IMPACTYPE"].value_counts().index,
+        palette="plasma",
+    )
+    plt.title("Number of Collisions by Impact Type")
+    plt.xlabel("Number of Persons Involved")
+    plt.ylabel("Impact Type")
+    plt.tight_layout()
+    plt.savefig(r"graphs/3_countplot_impactype.png")
+    plt.close()
+
+    # --- Graph 4: Severity by Road Class (Percentage) ---
+    crosstab_roadclass = (
+        pd.crosstab(df["ROAD_CLASS"], df["ACCLASS"], normalize="index") * 100
+    )
+    crosstab_roadclass.plot(
+        kind="bar", stacked=True, figsize=(12, 8), colormap="coolwarm"
+    )
+    plt.title("Proportion of Accident Severity by Road Class")
+    plt.xlabel("Road Class")
+    plt.ylabel("Percentage (%)")
+    plt.xticks(rotation=45)
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/4_stacked_severity_by_roadclass.png")
+    plt.close()
+
+    # --- Graph 5: Severity by Contributing Factors (Alcohol) ---
+    plt.figure(figsize=(10, 7))
+    sns.countplot(
+        data=df[df["ALCOHOL"] == "Yes"],
+        x="ALCOHOL",
+        hue="ACCLASS",
+        palette="Reds_r",
+    )
+    plt.title("Accident Severity in Alcohol-Related Collisions")
+    plt.xlabel("Alcohol Involved")
+    plt.ylabel("Number of Persons Involved")
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/5_grouped_severity_alcohol.png")
+    plt.close()
+
+    # --- Graph 6: Severity vs. Aggressive/Distracted Driving ---
+    plt.figure(figsize=(10, 7))
+    sns.countplot(
+        data=df[df["AG_DRIV"] == "Yes"],
+        x="AG_DRIV",
+        hue="ACCLASS",
+        palette="Oranges_r",
+    )
+    plt.title("Accident Severity in Aggressive/Distracted Driving Collisions")
+    plt.xlabel("Aggressive/Distracted Driving Involved")
+    plt.ylabel("Number of Persons Involved")
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/6_grouped_severity_ag_driv.png")
+    plt.close()
+
+    # --- Graph 7: Collisions Over the Years ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="YEAR", hue="ACCLASS", palette="viridis")
+    plt.title("KSI Collisions by Year")
+    plt.xlabel("Year")
+    plt.ylabel("Number of Persons Involved")
+    plt.xticks(rotation=45)
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/7_line_collisions_by_year.png")
+    plt.close()
+
+    # --- Graph 8: Collisions by Hour of Day ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="HOUR", palette="twilight_shifted")
+    plt.title("Number of Collisions by Hour of Day")
+    plt.xlabel("Hour of Day (24-hour format)")
+    plt.ylabel("Number of Persons Involved")
+    plt.tight_layout()
+    plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
+    plt.close()
+
+    # --- Graph 9: Collisions by Day of Week ---
+    days_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    plt.figure(figsize=(12, 6))
+    sns.countplot(data=df, x="DAY_OF_WEEK", order=days_order, palette="cubehelix")
+    plt.title("Number of Collisions by Day of Week")
+    plt.xlabel("Day of Week")
+    plt.ylabel("Number of Persons Involved")
+    plt.tight_layout()
+    plt.savefig(r"graphs/9_bar_collisions_by_day.png")
+    plt.close()
+
+    # --- Graph 10: Collision Hotspot Map ---
+    plt.figure(figsize=(10, 10))
+    sns.kdeplot(
+        data=df,
+        x="LONGITUDE",
+        y="LATITUDE",
+        fill=True,
+        cmap="Reds",
+        alpha=0.6,
+        levels=20,  # Increase levels for more detail
+    )
+    plt.title("Collision Hotspot Density in Toronto")
+    plt.xlabel("Longitude")
+    plt.ylabel("Latitude")
+    plt.tight_layout()
+    plt.savefig(r"graphs/10_kdeplot_hotspots.png")
+    plt.close()
 
 
 if __name__ == "__main__":
@@ -695,14 +728,13 @@ if __name__ == "__main__":
 
     if ksi_df is not None:
         # 2. Initial data investigation
-        # initial_data_investigation(ksi_df)
+        # investigate_dataset(ksi_df)
 
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
 
         cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
-        # initial_data_investigation(cleaned_df)
-
+        # investigate_dataset(cleaned_df)
         # 4. Perform data quality check
         # perform_data_quality_check(cleaned_df)
 
