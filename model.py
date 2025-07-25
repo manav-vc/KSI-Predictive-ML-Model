@@ -1,14 +1,14 @@
 """
 Toronto KSI Collisions Analysis and Modelling
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions df.
+This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
 
 Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
 Date: 2023-10-31
 """
 
 """
-1. Data exploration: a complete review and analysis of the df including:
+1. Data exploration: a complete review and analysis of the dataset including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
 Statistical assessments including means, averages, correlations
@@ -36,7 +36,7 @@ from pandas.core.base import np
 
 DATA_FILE = "ksi.csv"
 PLOTS_DIR = "plots"
-df_DIR = "datasets"
+DATASET_DIR = "datasets"
 
 
 def load_data(file_path: str):
@@ -50,10 +50,10 @@ def load_data(file_path: str):
 
 def investigate_dataset(df):
     """
-    Performs an initial investigation of the df.
+    Performs an initial investigation of the dataset.
 
     Args:
-        df (pd.DataFrame): The df to investigate.
+        df (pd.DataFrame): The dataset to investigate.
     """
     print("\ndf Info:")
     df.info()
@@ -155,10 +155,10 @@ def clean_data(df):
     Performs data cleaning and preprocessing steps.
 
     Args:
-        df (pd.DataFrame): Raw df.
+        df (pd.DataFrame): Raw dataset.
 
     Returns:
-        pd.DataFrame: The preprocessed df.
+        pd.DataFrame: The preprocessed dataset.
     """
     df_cleaned = df.copy()
 
@@ -746,13 +746,7 @@ def data_visualisation(df):
 
 if __name__ == "__main__":
     # 1. Load data
-    ksi_df = load_data(os.path.join(df_DIR, DATA_FILE))
-    display_column_details(ksi_df)
-
-    print(ksi_df.isnull().sum())
-
-    # commented out for now
-    # data_visualisation(ksi_df)
+    ksi_df = load_data(os.path.join(DATASET_DIR, DATA_FILE))
 
     if ksi_df is not None:
         # 2. Initial data investigation
@@ -761,11 +755,12 @@ if __name__ == "__main__":
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
 
-        cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
-        # investigate_dataset(cleaned_df)
         # 4. Perform data quality check
         # perform_data_quality_check(cleaned_df)
 
         # 5. Feature engineering (or perform encoding, imputing, drop features)
         #  TODO: https://scikit-learn.org/stable/modules/feature_selection.html#tree-based-feature-selection
         # Use feature importances (of the selected classifier) for feature selection.
+
+        # Export cleaned df to CSV
+        cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
