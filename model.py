@@ -27,6 +27,7 @@ Use pipelines class to streamline all the pre-processing transformations.
 
 import os
 import tarfile
+import time
 import urllib.request
 
 import matplotlib.pyplot as plt
@@ -764,4 +765,7 @@ if __name__ == "__main__":
         # Use feature importances (of the selected classifier) for feature selection.
 
         # Export cleaned df to CSV
-        cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
+        now = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime(time.time()))
+        cleaned_df.to_csv(
+            os.path.join(DATASET_DIR, f"toronto_ksi_{now}.csv"), index=False
+        )
