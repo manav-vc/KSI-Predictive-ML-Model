@@ -437,7 +437,8 @@ def clean_data(df):
     # Drop offset because it is not useful for analysis and it's missing 79% of the time.
     aggregated_df.drop(columns=["offset"], inplace=True)
 
-    # Drop pedestrian_type because it's a detail of how the pedestrian was involved (we cannot use a sentence.
+    # INFO: Drop pedestrian_type because it's a detail of how the pedestrian was involved (we cannot use a sentence.
+    # decided to keep it for now, since we multilabel imputed.
     # aggregated_df.drop(columns=["pedestrian_type"], inplace=True)
 
     # drop division because it means the toronto police division, which is not useful for analysis.
