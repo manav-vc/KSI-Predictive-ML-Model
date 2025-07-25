@@ -1,14 +1,14 @@
 """
 Toronto KSI Collisions Analysis and Modelling
 
-This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions df.
+This script performs data exploration and modeling on the Toronto KSI (Killed or Seriously Injured) collisions dataset.
 
 Authors: Carlos De La Cruz, Manav, Harsh, and Rishi
 Date: 2023-10-31
 """
 
 """
-1. Data exploration: a complete review and analysis of the df including:
+1. Data exploration: a complete review and analysis of the dataset including:
 
 Load and describe data elements (columns), provide descriptions & types, ranges and values of elements as appropriate. – use pandas, numpy and any other python packages.
 Statistical assessments including means, averages, correlations
@@ -36,7 +36,7 @@ from pandas.core.base import np
 
 DATA_FILE = "ksi.csv"
 PLOTS_DIR = "plots"
-df_DIR = "datasets"
+DATASET_DIR = "datasets"
 
 
 def load_data(file_path: str):
@@ -48,13 +48,12 @@ def load_data(file_path: str):
     return df
 
 
-
-def initial_data_investigation(df):
+def investigate_dataset(df):
     """
-    Performs an initial investigation of the df.
+    Performs an initial investigation of the dataset.
 
     Args:
-        df (pd.DataFrame): The df to investigate.
+        df (pd.DataFrame): The dataset to investigate.
     """
     print("\ndf Info:")
     df.info()
@@ -156,10 +155,10 @@ def clean_data(df):
     Performs data cleaning and preprocessing steps.
 
     Args:
-        df (pd.DataFrame): Raw df.
+        df (pd.DataFrame): Raw dataset.
 
     Returns:
-        pd.DataFrame: The preprocessed df.
+        pd.DataFrame: The preprocessed dataset.
     """
     df_cleaned = df.copy()
 
@@ -308,9 +307,187 @@ def clean_data(df):
         "involvement_age": get_all_unique,
         "injury_severity_score": "max",
     }
-    aggregated_df = df_cleaned.groupby("accident_number").agg(aggregation_dict)
+    aggregated_df = (
+        df_cleaned.groupby("accident_number")
+        .agg(aggregation_dict)
+        .reset_index(drop=True)
+    )
 
-    return aggregated_df.reset_index(drop=True)
+    # --- post-aggregation ---
+    #  INFO: Investigation
+    # Get accidents where pedestrian_action has multiple values
+    # accident_number = 886 has ['Crossing, no Traffic Control', 'Crossing without right of way']
+    # so this is a multi-label feature.
+    # multi_label_pedestrian_actions = aggregated_df[
+    #     aggregated_df["pedestrian_action"].apply(lambda x: len(x) > 1)
+    # ]
+    # print(df_cleaned["pedestrian_type"].unique())
+
+    # --- missing values handling ---
+
+    #  INFO: Impute multilabel features with 'Not Applicable' if the list is empty.
+    for multi_label_feature in [
+        "pedestrian_action",
+        "pedestrian_condition",
+        "pedestrian_type",
+        "cyclist_action",
+        "cyclist_condition",
+        "cyclist_type",
+    ]:
+        if multi_label_feature in aggregated_df.columns:
+            aggregated_df[multi_label_feature] = aggregated_df[
+                multi_label_feature
+            ].apply(
+                lambda x: (
+                    ["Not Applicable"] if isinstance(x, list) and len(x) == 0 else x
+                )
+            )
+
+    # Impute accident_location with 'Unknown'
+    aggregated_df.fillna({"accident_location": "Unknown"}, inplace=True)
+
+    # Impute road_class with the most frequent value for street1 and street2
+    street1_road_class_map = (
+        aggregated_df.groupby("street1")["road_class"]
+        .apply(get_most_frequent)
+        .to_dict()
+    )
+    mask_missing_road_class = aggregated_df["road_class"].isnull()
+    for i, row in aggregated_df[mask_missing_road_class].iterrows():
+        street = row["street1"]
+        if street in street1_road_class_map and pd.notna(
+            street1_road_class_map[street]
+        ):
+            aggregated_df.loc[i, "road_class"] = street1_road_class_map[street]
+
+    mask_remaining_missing_road_class = aggregated_df["road_class"].isnull()
+    if mask_remaining_missing_road_class.any():
+        street2_road_class_map = (
+            aggregated_df.groupby("street2")["road_class"]
+            .apply(get_most_frequent)
+            .to_dict()
+        )
+        for i, row in aggregated_df[mask_remaining_missing_road_class].iterrows():
+            street = row["street2"]
+            if street in street2_road_class_map and pd.notna(
+                street2_road_class_map[street]
+            ):
+                aggregated_df.loc[i, "road_class"] = street2_road_class_map[street]
+
+    # Impute district the district value where street1 or street2 matches
+    street1_district_map = (
+        aggregated_df.groupby("street1")["district"].apply(get_most_frequent).to_dict()
+    )
+    mask_missing_district = aggregated_df["district"].isnull()
+    for i, row in aggregated_df[mask_missing_district].iterrows():
+        street = row["street1"]
+        if street in street1_district_map and pd.notna(street1_district_map[street]):
+            aggregated_df.loc[i, "district"] = street1_district_map[street]
+
+    mask_remaining_missing_district = aggregated_df["district"].isnull()
+    if mask_remaining_missing_district.any():
+        street2_district_map = (
+            aggregated_df.groupby("street2")["district"]
+            .apply(get_most_frequent)
+            .to_dict()
+        )
+        for i, row in aggregated_df[mask_remaining_missing_district].iterrows():
+            street = row["street2"]
+            if street in street2_district_map and pd.notna(
+                street2_district_map[street]
+            ):
+                aggregated_df.loc[i, "district"] = street2_district_map[street]
+
+    # Fill any remaining missing district with 'Unknown'
+    aggregated_df.fillna({"district": "Unknown"}, inplace=True)
+
+    # Fill any remaining missing road_class with 'Unknown'
+    aggregated_df.fillna({"road_class": "Unknown"}, inplace=True)
+
+    # Impute street2 with n/a
+    aggregated_df.fillna({"street2": "Not Applicable"}, inplace=True)
+
+    # Impute traffctl with 'Missing control'
+    aggregated_df.fillna({"traffctl": "Missing Control"}, inplace=True)
+
+    #  NOTE: missing values are so low for visibility, light and road_surface_condition that's not worth it to cross impute them.
+
+    # Impute visibility with 'Unknown'
+    aggregated_df.fillna({"visibility": "Unknown"}, inplace=True)
+
+    # Impute light with 'Unknown'
+    aggregated_df.fillna({"light": "Unknown"}, inplace=True)
+
+    # Impute road_surface_condition with 'Unknown'
+    aggregated_df.fillna({"road_surface_condition": "Unknown"}, inplace=True)
+
+    # Impute initial_direction with 'Unknown'
+    aggregated_df.fillna({"initial_direction": "Unknown"}, inplace=True)
+
+    # Impute involvement_type with 'Unknown' because only 9 samples are missing
+    aggregated_df.fillna({"impact_type": "Unknown"}, inplace=True)
+
+    # Impute accident_class with 'Fatal' is injury_severity_score is 4
+    aggregated_df.loc[aggregated_df["injury_severity_score"] == 4, "accident_class"] = (
+        "Fatal"
+    )
+
+    # --- Drop features ---
+
+    # Drop offset because it is not useful for analysis and it's missing 79% of the time.
+    aggregated_df.drop(columns=["offset"], inplace=True)
+
+    # Drop pedestrian_type because it's a detail of how the pedestrian was involved (we cannot use a sentence.
+    # aggregated_df.drop(columns=["pedestrian_type"], inplace=True)
+
+    # drop division because it means the toronto police division, which is not useful for analysis.
+    aggregated_df.drop(columns=["division"], inplace=True)
+
+    return aggregated_df
+
+
+def feature_engineering(df):
+
+    #  INFO: feature engineering decision
+    # "strategy": "single_label" means that the feature has one label per sample
+    # "strategy": "multi_label" means that the feature can have multiple labels per sample
+    feature_engineering_decisions = {
+        "accident_location": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "traffctl": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "visibility": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        #  TODO: light can have "dark, artificial". do we wanna remove that?
+        "light": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        "road_surface_condition": {
+            "action": "one_hot_encode",
+            "strategy": "single_label",
+        },
+        #  TODO: injury is true/false if the accident was fatal. But isn't this the same as accident_class?
+        "injury": {
+            "action": "binarizer",
+        },
+        "pedestrian_actionl": {
+            "action": "multi_label_binarizer",
+        },
+        "involvement_type": "",
+        "involvement_age": "binning",  # TODO: binning
+        "road_class": "one-hot-encode",
+        #  i don't know
+        "district": "",
+    }
+
+    return df
 
 
 def perform_data_quality_check(df_cleaned):
@@ -381,26 +558,6 @@ def perform_data_quality_check(df_cleaned):
     )
 
 
-# Display the first few rows of the df
-def display_column_details(df):
-    for col in df.columns:
-        print(f"\nColumn: {col}")
-        print("Data type:", df[col].dtype)
-        print("First 5 values:\n", df[col].head())
-        print("Missing values:", df[col].isnull().sum())
-        if pd.api.types.is_numeric_dtype(df[col]):
-            print("Statistical summary:\n", df[col].describe())
-            print("\n\n\n")
-        else:
-            print("Value counts:\n", df[col].value_counts().head())
-            print("\n\n\n")
-
-
-
-
-
-
-
 # Data visualization
 def data_visualisation(df):
     import matplotlib.pyplot as plt
@@ -417,7 +574,6 @@ def data_visualisation(df):
     df["DAY_OF_WEEK"] = df["DATE"].dt.day_name()
     # Convert integer time (e.g., 1450) to just the hour (e.g., 14)
     df["HOUR"] = df["TIME"] // 100
-
 
     # --- Graph 1: Accident Severity Breakdown ---
     plt.figure(figsize=(8, 6))
@@ -462,7 +618,9 @@ def data_visualisation(df):
     crosstab_roadclass = (
         pd.crosstab(df["ROAD_CLASS"], df["ACCLASS"], normalize="index") * 100
     )
-    crosstab_roadclass.plot(kind="bar", stacked=True, figsize=(12, 8), colormap="coolwarm")
+    crosstab_roadclass.plot(
+        kind="bar", stacked=True, figsize=(12, 8), colormap="coolwarm"
+    )
     plt.title("Proportion of Accident Severity by Road Class")
     plt.xlabel("Road Class")
     plt.ylabel("Percentage (%)")
@@ -504,6 +662,27 @@ def data_visualisation(df):
     plt.savefig(r"graphs/6_grouped_severity_ag_driv.png")
     plt.close()
 
+    # --- Graph 7: Collisions Over the Years ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="YEAR", hue="ACCLASS", palette="viridis")
+    plt.title("KSI Collisions by Year")
+    plt.xlabel("Year")
+    plt.ylabel("Number of Persons Involved")
+    plt.xticks(rotation=45)
+    plt.legend(title="Accident Class")
+    plt.tight_layout()
+    plt.savefig(r"graphs/7_line_collisions_by_year.png")
+    plt.close()
+
+    # --- Graph 8: Collisions by Hour of Day ---
+    plt.figure(figsize=(14, 7))
+    sns.countplot(data=df, x="HOUR", palette="twilight_shifted")
+    plt.title("Number of Collisions by Hour of Day")
+    plt.xlabel("Hour of Day (24-hour format)")
+    plt.ylabel("Number of Persons Involved")
+    plt.tight_layout()
+    plt.savefig(r"graphs/8_bar_collisions_by_hour.png")
+    plt.close()
 
     # --- Graph 7: Collisions Over the Years ---
     plt.figure(figsize=(14, 7))
@@ -567,26 +746,21 @@ def data_visualisation(df):
 
 if __name__ == "__main__":
     # 1. Load data
-    ksi_df = load_data(os.path.join(df_DIR, DATA_FILE))
-    display_column_details(ksi_df)
-
-    print(ksi_df.isnull().sum())
-
-    # commented out for now
-    # data_visualisation(ksi_df)
+    ksi_df = load_data(os.path.join(DATASET_DIR, DATA_FILE))
 
     if ksi_df is not None:
         # 2. Initial data investigation
-        # initial_data_investigation(ksi_df)
+        # investigate_dataset(ksi_df)
 
         # 3. Clean data
         cleaned_df = clean_data(ksi_df)
-        cleaned_df.to_csv(os.path.join(df_DIR, "cleaned_ksi.csv"), index=False)
-        # initial_data_investigation(cleaned_df)
 
         # 4. Perform data quality check
-        perform_data_quality_check(cleaned_df)
+        # perform_data_quality_check(cleaned_df)
 
         # 5. Feature engineering (or perform encoding, imputing, drop features)
         #  TODO: https://scikit-learn.org/stable/modules/feature_selection.html#tree-based-feature-selection
         # Use feature importances (of the selected classifier) for feature selection.
+
+        # Export cleaned df to CSV
+        cleaned_df.to_csv(os.path.join(DATASET_DIR, "cleaned_ksi.csv"), index=False)
